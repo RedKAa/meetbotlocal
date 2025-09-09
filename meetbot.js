@@ -320,6 +320,12 @@ async function recordGoogleMeet(meetingUrl, botName, recordSeconds = RECORD_SECO
     log('Wait admission...');
     await waitForMeetingAdmission(page, 300000); // 5 mins
 
+    // log('Try turn on subtitle...');
+    // const { enableCaptionsVietnameseViaSettings } = require('./helper');
+
+    // // Sau khi bot join & được admit:
+    // await enableCaptionsVietnameseViaSettings(page);
+
     log('Wait UI stabilize...');
     await page.waitForTimeout(8000);
 
