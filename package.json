@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "record": "node ./meetbot.js",
+    "t": "node ./botv2.js",
     "tran": "node ./meetbot-phowisher.js"
   },
   "keywords": [],
