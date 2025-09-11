@@ -7,8 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "record": "node ./meetbot.js",
-    "t": "node ./botv2.js",
+    "record": "node ./meetbot-v2-mini.js",
     "tran": "node ./meetbot-phowisher.js"
   },
   "keywords": [],
