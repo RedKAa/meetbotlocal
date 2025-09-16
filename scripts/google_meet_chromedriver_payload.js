@@ -1,6 +1,7 @@
 
 console.log('hasProto', !!(pako.inflate));
 console.log('hasPako', !!(protobuf.Reader));
+const wsProvider = () => window.ws;
 
 function sendChatMessage(text) {
     
@@ -659,7 +660,7 @@ class CaptionManager {
 
     singleCaptionSynced(caption) {
         this.captions.set(caption.captionId, caption);
-        this.ws.sendClosedCaptionUpdate(caption);
+        this.ws()?.sendClosedCaptionUpdate(caption);
     }
 }
 
@@ -679,7 +680,7 @@ class ChatMessageManager {
             const chatMessage = chatMessageRaw.chatMessage;
             console.log('handleChatMessage', chatMessage);
 
-            this.ws.sendJson({
+            this.ws()?.sendJson({
                 type: 'ChatMessage',
                 message_uuid: chatMessage.messageId,
                 participant_uuid: chatMessage.deviceId,
@@ -734,7 +735,7 @@ class UserManager {
         }
 
         // Notify websocket clients about the device output update
-        this.ws.sendJson({
+        this.ws()?.sendJson({
             type: 'DeviceOutputsUpdate',
             deviceOutputs: Array.from(this.deviceOutputMap.values())
         });
@@ -849,7 +850,7 @@ class UserManager {
         const updatedUsers = Array.from(updatedUserIds).map(id => this.currentUsersMap.get(id));
 
         if (newUsers.length > 0 || removedUsers.length > 0 || updatedUsers.length > 0) {
-            this.ws.sendJson({
+            this.ws()?.sendJson({
                 type: 'UsersUpdate',
                 newUsers: newUsers,
                 removedUsers: removedUsers,
@@ -908,14 +909,9 @@ class WebSocketClient {
   constructor() {
       const url = `ws://localhost:${window.initialData.websocketPort}`;
       console.log('WebSocketClient url', url);
+      this.ws = new WebSocket(url);
+      console.log('WebSocketClient readyState', this.ws.readyState);
 
-    try {
-        this.ws = new WebSocket(url);
-    } catch (e) {
-        console.error('WebSocket ctor threw', e); 
-        throw e; // để thấy trace thật
-    }
-        
       this.ws.binaryType = 'arraybuffer';
       
       this.ws.onopen = () => {
@@ -1001,7 +997,6 @@ class WebSocketClient {
   */
 
   async enableMediaSending() {
-    return
     this.mediaSendingEnabled = true;
     await window.styleManager.start();
 
@@ -1010,8 +1005,6 @@ class WebSocketClient {
   }
 
   async disableMediaSending() {
-    return
-
     window.styleManager.stop();
     // Give the media recorder a bit of time to send the final data
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1022,8 +1015,6 @@ class WebSocketClient {
   }
 
   handleMessage(data) {
-    return
-
       const view = new DataView(data);
       const messageType = view.getInt32(0, true); // true for little-endian
       
@@ -1040,8 +1031,6 @@ class WebSocketClient {
   }
   
   sendJson(data) {
-    return
-
       if (this.ws.readyState !== WebSocket.OPEN) {
           console.error('WebSocket is not connected');
           return;
@@ -1070,8 +1059,6 @@ class WebSocketClient {
   }
 
   sendClosedCaptionUpdate(item) {
-    return
-
     if (!this.mediaSendingEnabled)
         return;
 
@@ -1082,8 +1069,6 @@ class WebSocketClient {
   }
 
   sendEncodedMP4Chunk(encodedMP4Data) {
-    return
-
     if (this.ws.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected for video chunk send', this.ws.readyState);
       return;
@@ -1110,8 +1095,6 @@ class WebSocketClient {
   }
 
   sendPerParticipantAudio(participantId, audioData) {
-    return
-
     if (this.ws.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected for per participant audio send', this.ws.readyState);
       return;
@@ -1150,8 +1133,6 @@ class WebSocketClient {
   }
 
   sendMixedAudio(timestamp, audioData) {
-    return
-
       if (this.ws.readyState !== WebSocket.OPEN) {
           console.error('WebSocket is not connected for audio send', this.ws.readyState);
           return;
@@ -1180,8 +1161,6 @@ class WebSocketClient {
   }
 
   sendVideo(timestamp, streamId, width, height, videoData) {
-    return
-
       if (this.ws.readyState !== WebSocket.OPEN) {
           console.error('WebSocket is not connected for video send', this.ws.readyState);
           return;
@@ -1475,16 +1454,20 @@ function createMessageDecoder(messageType) {
     };
 }
 
-const ws = new WebSocketClient();
-window.ws = ws;
+// load script using python can go directly this way 
+// const ws = new WebSocketClient();
+// window.ws = ws;
 
-const userManager = new UserManager(ws);
+// load script oneshot using js: WebSocketClient need to init new only 1 time and must wait till bot joined meeting room 
+window._initwsc = () => { window.ws = new WebSocketClient(); };
 
-const captionManager = new CaptionManager(ws);
-const videoTrackManager = new VideoTrackManager(ws);
+const userManager = new UserManager(wsProvider);
+
+const captionManager = new CaptionManager(wsProvider);
+const videoTrackManager = new VideoTrackManager(wsProvider);
 const styleManager = new StyleManager();
 const receiverManager = new ReceiverManager();
-const chatMessageManager = new ChatMessageManager(ws);
+const chatMessageManager = new ChatMessageManager(wsProvider);
 let rtpReceiverInterceptor = null;
 if (window.initialData.sendPerParticipantAudio) {
     rtpReceiverInterceptor = new RTCRtpReceiverInterceptor((receiver, result, ...args) => {
@@ -1655,7 +1638,7 @@ const handleVideoTrack = async (event) => {
                         */
                         // Get current time in microseconds (multiply milliseconds by 1000)
                         const currentTimeMicros = BigInt(Math.floor(currentTime * 1000));
-                        ws.sendVideo(currentTimeMicros, firstStreamId, frame.displayWidth, frame.displayHeight, data);
+                        window.ws.sendVideo(currentTimeMicros, firstStreamId, frame.displayWidth, frame.displayHeight, data);
 
                         rawFrame.close();
                         lastFrameTime = currentTime;
@@ -1774,7 +1757,7 @@ const handleAudioTrack = async (event) => {
                 if (!lastAudioFormat || 
                     JSON.stringify(currentFormat) !== JSON.stringify(lastAudioFormat)) {
                     lastAudioFormat = currentFormat;
-                    ws.sendJson({
+                    window.ws.sendJson({
                         type: 'AudioFormatUpdate',
                         format: currentFormat
                     });
@@ -1805,7 +1788,7 @@ const handleAudioTrack = async (event) => {
                 if (userForContributingSourceWithLoudestAudio) {
                     const firstUserId = userForContributingSourceWithLoudestAudio?.deviceId;
                     if (firstUserId) {
-                        ws.sendPerParticipantAudio(firstUserId, audioData);
+                        window.ws.sendPerParticipantAudio(firstUserId, audioData);
                     }
                 }
                 

@@ -163,6 +163,7 @@ async function recordGoogleMeet(meetingUrl, botName, recordSeconds = RECORD_SECO
             };
         });
 
+        //google_meet_chromedriver_payload need have libs to runs
         const pbPath   = path.join(__dirname, 'scripts', 'protobuf.min.js');
         const pakoPath = path.join(__dirname, 'scripts', 'pako.min.js');
         await page.addInitScript({ path: pbPath });
@@ -178,6 +179,9 @@ async function recordGoogleMeet(meetingUrl, botName, recordSeconds = RECORD_SECO
         log('Join meeting...');
         await joinMeeting(page, meetingUrl, botName);
 
+        // init websocket client after joined meeting room
+        await page.evaluate(() => window._initwsc && window._initwsc());
+
         log('Wait admission...');
         await waitForMeetingAdmission(page, 300000); // 5 mins
 
@@ -189,10 +193,10 @@ async function recordGoogleMeet(meetingUrl, botName, recordSeconds = RECORD_SECO
     } catch (e) {
         log('Error:', e.message);
     }
-    //  finally {
-    //     await browser.close();
-    //     log('Browser closed.');
-    // }
+     finally {
+        await browser.close();
+        log('Browser closed.');
+    }
 }
 
 // ====== CLI ======
